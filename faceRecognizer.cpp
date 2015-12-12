@@ -1,4 +1,4 @@
-// Practica_PIC.cpp: define el punto de entrada de la aplicación de consola.
+// Proyecto_PIC.cpp: define el punto de entrada de la aplicación de consola.
 //
 
 #include "stdafx.h"
@@ -13,8 +13,7 @@ using namespace cv;
 using namespace std;
 
 CascadeClassifier face_cascade;
-CascadeClassifier lEyeDetector;
-CascadeClassifier rEyeDetector;
+CascadeClassifier EyeDetector;
 
 float EYE_SX = 0.12f;
 float EYE_SY = 0.17f;
@@ -52,40 +51,46 @@ Mat calcHistogram(Mat img) {
 	return histImage;
 }
 
-bool EyeDetection(Mat& image, Rect& face_detected, Rect& lEye, Rect& rEye){
+bool detectEyes(Mat& image, vector<Rect>& faces, vector<Rect>& lEye, vector<Rect>& rEye) {
 
+	Mat face;
+	
+	for (size_t i = 0; i < faces.size(); i++) {
 
+		face = Mat(image, faces[i]);
 
-	Mat face = image(face_detected);
+		int leftX = cvRound(face.cols * EYE_SX);
+		int topY = cvRound(face.rows * EYE_SY);
+		int widthX = cvRound(face.cols * EYE_SW);
+		int heightY = cvRound(face.rows * EYE_SH);
+		int rightX = cvRound(face.cols * (1.0 - EYE_SX - EYE_SW));
 
-	int leftX = cvRound(face.cols * EYE_SX);
-	int topY = cvRound(face.rows * EYE_SY);
-	int widthX = cvRound(face.cols * EYE_SW);
-	int heightY = cvRound(face.rows * EYE_SH);
-	int rightX = cvRound(face.cols * (1.0 - EYE_SX - EYE_SW));
+		Mat topLeftOfFace = face(Rect(leftX, topY, widthX, heightY));
+		Mat topRightOfFace = face(Rect(rightX, topY, widthX, heightY));
 
-	Mat topLeftOfFace = face(Rect(leftX, topY, widthX, heightY));
-	Mat topRightOfFace = face(Rect(rightX, topY, widthX, heightY));
+		vector<Rect> lEyeR, rEyeR;
 
-	vector<Rect> lEyeR, rEyeR;
+		EyeDetector.detectMultiScale(topLeftOfFace, lEyeR, 1.1, 3, 
 
-	lEyeDetector.detectMultiScale(topLeftOfFace, lEyeR, 1.1, 3, CASCADE_DO_ROUGH_SEARCH);
-	rEyeDetector.detectMultiScale(topRightOfFace, rEyeR, 1.1, 3, CASCADE_DO_ROUGH_SEARCH);
+CASCADE_DO_ROUGH_SEARCH);
+		EyeDetector.detectMultiScale(topRightOfFace, rEyeR, 1.1, 3, 
 
-	if (lEyeR.size() == 1 && rEyeR.size() == 1)
-	{
-		lEye = lEyeR[0];
-		rEye = rEyeR[0];
+CASCADE_DO_ROUGH_SEARCH);
 
-		lEye.x += leftX;
-		lEye.y += topY;
+		if (lEyeR.size() == 1 && rEyeR.size() == 1)
+		{
+			lEye[i] = lEyeR[i];
+			rEye[i] = rEyeR[i];
 
-		rEye.x += rightX;
-		rEye.y += topY;
+			lEye[i].x += leftX;
+			lEye[i].y += topY;
 
-		return true;
+			rEye[i].x += rightX;
+			rEye[i].y += topY;
+
+			return true;
+		}
 	}
-
 	return false;
 }
 
@@ -173,15 +178,7 @@ endl;
 		return false;
 	}
 
-	if (!lEyeDetector.load("haarcascade_eye_tree_eyeglasses.xml"))
-	{
-		cout << "No se encuentra el archivo haarcascade_eye_tree_eyeglasses.xml" << 
-
-endl;
-		return false;
-	}
-
-	if (!rEyeDetector.load("haarcascade_eye_tree_eyeglasses.xml"))
+	if (!EyeDetector.load("haarcascade_eye_tree_eyeglasses.xml"))
 	{
 		cout << "No se encuentra el archivo haarcascade_eye_tree_eyeglasses.xml" << 
 
@@ -194,7 +191,6 @@ endl;
 
 int main(int argc, char* argv[]) {
 
-	vector<Rect> faces;
 	vector <int> numdetections;
 	bool holdImage = false;
 
@@ -216,7 +212,7 @@ int main(int argc, char* argv[]) {
 Entrenamiento \n\t[ESC] Salir\n";
 	cout << msg1;
 
-	if (!Init()){
+	if (!Init()) {
 		cout << "error al cargas los archivos .xml" << endl;
 		return 1;
 	}
@@ -235,7 +231,10 @@ Entrenamiento \n\t[ESC] Salir\n";
 		Mat frame;
 		Mat workingImage;
 		Mat image;
-		Rect lEye, rEye;
+
+		vector<Rect> faces;
+		vector<Rect> lEye, rEye;
+
 		inputvideo >> frame;
 
 		if (frame.empty())
@@ -247,158 +246,168 @@ Entrenamiento \n\t[ESC] Salir\n";
 
 		//Mat histImage = calcHistogram(workingImage);
 		//imshow("histogram", histImage);
+		
+		face_cascade.detectMultiScale(workingImage, faces, 1.1, 8, CV_HAAR_SCALE_IMAGE 
 
-		face_cascade.detectMultiScale(workingImage, faces, numdetections, 1.1, 8, 
+| CV_HAAR_DO_CANNY_PRUNING, Size(50,50), Size(300, 300));
 
-CV_HAAR_SCALE_IMAGE | CV_HAAR_DO_CANNY_PRUNING, Size(50, 50), Size(300, 300));
+		if (detectEyes(workingImage, faces, lEye, rEye)) {
 
-		int n = faces.size();
+			if (entrenamiento) {
 
-		if (entrenamiento) {
+				if (faces.size() == 1) {
 
-			if (n == 1 && EyeDetection(workingImage, faces[0], lEye, rEye)) {
+					Mat nface;
+					CropFace(workingImage(faces[0]), nface, lEye[0], rEye
 
-				Mat nface;
-				CropFace(workingImage(faces[0]), nface, lEye, rEye);
+[0]);
 
-				if (agregarRostro)
-				{
-					Mat fface;
+					if (agregarRostro)
+					{
+						Mat fface;
 
-					flip(nface, fface, 1);
-					rostros.push_back(fface);
-					ids.push_back(identificador);
+						flip(nface, fface, 1);
+						rostros.push_back(fface);
+						ids.push_back(identificador);
 
-					rostros.push_back(nface);
-					ids.push_back(identificador);
-					agregarRostro = false;
+						rostros.push_back(nface);
+						ids.push_back(identificador);
+						agregarRostro = false;
 
-					capCount += 1;
-					cout << "Se han capturado " << capCount << " Rostros" 
+						capCount += 1;
+						cout << "Se han capturado " << capCount << " 
 
-<< endl;
-				}
+Rostros" << endl;
+					}
 
-				if (entrenar && rostros.size() >= 1)
-				{
-					model->update(rostros, ids);
+					if (entrenar && rostros.size() >= 1)
+					{
+						model->update(rostros, ids);
 
-					cout << "\nNombre de la persona: ";
-					cin >> names[identificador];
-					system("cls");
+						cout << "\nNombre de la persona: ";
+						cin >> names[identificador];
+						system("cls");
 
-					entrenar = agregarRostro = entrenamiento = false;
-					rostros.clear();
-					ids.clear();
-					identificador += 1;
-					capCount = 0;
+						entrenar = agregarRostro = entrenamiento = 
 
-					cout << msg1;
+false;
+						rostros.clear();
+						ids.clear();
+						identificador += 1;
+						capCount = 0;
+
+						cout << msg1;
+					}
+
 				}
 
 			}
-		}
+			else {
 
-		Mat rois[5];
+				Mat rois[5];
 
-		for (size_t i = 0;i < n; i++) {
+				for (size_t i = 0;i < faces.size(); i++) {
 
-			if (i < 5) {
+					if (i < 5) {
 
-				rois[i] = Mat(image, Rect(faces[i].x, faces[i].y, faces
+						rois[i] = Mat(image, Rect(faces[i].x, faces
 
-[i].width, faces[i].height)).clone();
-				resize(rois[i], rois[i], Size(image.cols / 5, image.rows / 5));
-			}
-		}
+[i].y, faces[i].width, faces[i].height)).clone();
+						resize(rois[i], rois[i], Size(image.cols / 5, 
 
-			if (identificador >= 1)
-			{
+image.rows / 5));
+					}
+				}
 
-		for (size_t i = 0;i < n; i++) {
+				for (size_t i = 0;i < faces.size(); i++) {
 
-			if (identificador >= 1)
-			{
-				int id = -1;
-				double confidence = 0.0;
+					if (identificador >= 1) {
+						int id = -1;
+						double confidence = 0.0;
 
-				Mat nface;
-				CropFace(workingImage(faces[i]), nface, lEye, rEye);
+						Mat nface;
+						CropFace(workingImage(faces[i]), nface, lEye
 
-				//calquier confidence mayor que threshold id = -1
-				//redicir o aumentar este valor segun nos convenga
-				model->set("threshold", 70);
-				model->predict(nface, id, confidence);
+[i], rEye[i]);
 
-				if (id >= 0) {
+						//calquier confidence mayor que threshold id = 
 
-					string msg = names[id] + " : " + to_string
+-1
+						//redicir o aumentar este valor segun nos 
 
-((int)confidence);
+convenga
+						model->set("threshold", 70);
+						model->predict(nface, id, confidence);
 
-					DrawMarker(image, faces[i], msg, 20);
+						if (id >= 0) {
+
+							string msg = names[id] + " : " + 
+
+to_string((int)confidence);
+
+							DrawMarker(image, faces[i], msg, 20);
+
+						}
+						else
+							DrawMarker(image, faces[i], "???", 20);
+
+					}
+					else
+						DrawMarker(image, faces[i], "???", 20);
 
 				}
+				for (int i = 0;i < size(rois); i++) {
+
+					if (holdImage && rois[i].data) {
+
+						rois[i].copyTo(image.rowRange(image.rows - 
+
+rois[i].rows*(5 - i), rois[i].rows*(i + 1)).colRange(image.cols - rois[i].cols, image.cols));
+					}
+				}
+			}
+		}
+				imshow("Face Detection", image);
+
+			//imshow("Face Detection", image);
+			//imshow("Working Image", workingImage);
+
+			switch (waitKey(30)) {
+
+			case 'T':
+			case 't':
+
+				entrenar = true;
+				break;
+
+			case 'A':
+			case 'a':
+
+				agregarRostro = entrenamiento;
+				break;
+
+			case 'E':
+			case 'e':
+
+				entrenamiento = true;
+				system("cls");
+				cout << msg2 << endl;
+				break;
+
+			case 32:
+
+				if (holdImage)
+					holdImage = false;
 				else
-					DrawMarker(image, faces[i], "???", 20);
+					holdImage = true;
+				break;
 
-			}
-			else
-				DrawMarker(image, faces[i], "???", 20);
-		}
-
-		//imshow("Face Detection", image);
-		//imshow("Working Image", workingImage);
-
-		switch (waitKey(30))
-		{
-		case 'T':
-		case 't':
-			entrenar = true;
-			break;
-		case 'A':
-		case 'a':
-			agregarRostro = entrenamiento;
-			break;
-		case 'E':
-		case 'e':
-			entrenamiento = true;
-			system("cls");
-			cout << msg2 << endl;
-			break;
-		
-		case 32:
-
-			if (holdImage)
-				holdImage = false;
-			else
-				holdImage = true;
-			break;
-
-		default:
-			break;
-		
-		case 27:
-			return 0;
-		}
-
-		for (int i = 0;i < size(rois); i++) {
-
-			if (holdImage && rois[i].data) {
-
-				rois[i].copyTo(image.rowRange(image.rows - rois[i].rows*(5-i), 
-
-rois[i].rows*(i+1)).colRange(image.cols - rois[i].cols, image.cols));
+			case 27:
+				return 0;
 			}
 		}
 
-		imshow("Face Detection", image);
+		system("pause");
 
-		waitKey(10);
-
-		workingImage.release();
-		frame.release();
-	}
-
-	return 0;
+		return 0;
 }
