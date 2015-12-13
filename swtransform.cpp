@@ -4,30 +4,28 @@
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
+#include <unordered_map>
+#include "DisjointSets.h"
+#include "Component.h"
 
 #define PI 3.14159265
 
 using namespace cv;
 
 /// Global variables
-
-
 Mat gradient_x, gradient_y;
-
-//Mat SWTimage;
-int kernel_size = 3;
-char* window_name = "Edge Map";
 
 int strokeMedianFilter(Mat *SWTimage, std::vector<std::vector<Point2d>> *saved_rays);
 int strokeWidth(int i, int j, short g_x, short g_y, Mat *SWTimage, std::vector<std::vector<Point2d>> *saved_rays, Mat *edge_image);
 int getSteps(int g_x, int g_y, float& step_x, float& step_y);
 Mat SWTransform(Mat* edge_image);
+std::vector<Component> legallyConnectedComponents(Mat* SWTimage);
+
 /** @function main */
 
 int main(int argc, char** argv)
 {
 	Mat src, src_gray;
-  Mat filtered;
 	/// Load an image
 	//src = imread("road_signs.png");
 	src = imread("australiasigns.jpg");
@@ -40,16 +38,33 @@ int main(int argc, char** argv)
 
 	/// Convert the image to grayscale
 	cvtColor(src, src_gray, CV_BGR2GRAY);
+	Mat filtered;
 	// Reduce noise with a 3x3 gaussian kernel
 	blur(src_gray, filtered, Size(3, 3));
 	/// Canny detector
 	Mat detected_edges;
-	Canny(filtered, detected_edges, 100, 300, kernel_size);
+	Canny(filtered, detected_edges, 100, 300, 3);
+	//gradients
 	Sobel(filtered, gradient_x, CV_16S, 1, 0, 3, 1, 0, BORDER_DEFAULT);
 	Sobel(filtered, gradient_y, CV_16S, 0, 1, 3, 1, 0, BORDER_DEFAULT);
 
 	Mat SWTimage = SWTransform(&detected_edges);
 
+	std::vector < Component > components;
+	components = legallyConnectedComponents(&SWTimage);
+
+	Mat components_image = cv::Mat(src.rows, src.cols, CV_8UC3, cv::Scalar(0,0,0));
+
+	int color = 0;
+	for (std::vector<Component>::iterator it1 = components.begin(); it1 != components.end(); ++it1){
+		if (color == 3)
+			color = 0;
+		for (std::vector<Point2d>::iterator it2 = it1->points.begin(); it2 != it1->points.end(); ++it2){
+			components_image.at<cv::Vec3b>(it2->y, it2->x)[color] = 255;
+		}
+		color++;
+	}
+	/// Wait until user exit program by pressing a key
 	waitKey(0);
 
 	return 0;
@@ -74,7 +89,6 @@ Mat SWTransform(Mat* edge_image){
 
 	int i, j;
 	uchar* p;
-	int edges = 0;
 	short g_x, g_y;
 	for (i = 0; i < nRows; ++i)
 	{
@@ -83,10 +97,10 @@ Mat SWTransform(Mat* edge_image){
 		{
 			//found a edge
 			if (p[j] == 255){
-				if (i == 22 && j == 138){
-						edges++; //Debugging code. Used to access specific pixel
-				}
-				//gradient on the edge. Negative gradient to find dark text over clear background.
+				//if (i == 22 && j == 138){
+				//		int a; //Debugging code. Used to access specific pixel
+				//}
+				//gradient on the edge. Negative gradient to find dark text over bright background.
 				g_x = -(gradient_x.at<short>(i, j));
 				g_y = -(gradient_y.at<short>(i, j));
 				strokeWidth(j, i, g_x, g_y, &SWTimage, &saved_rays, edge_image);
@@ -95,7 +109,111 @@ Mat SWTransform(Mat* edge_image){
 	}
 
 	strokeMedianFilter(&SWTimage, &saved_rays);
+
 	return SWTimage;
+}
+
+std::vector<Component> legallyConnectedComponents(Mat* SWTimage){
+	Mat labels = cv::Mat(SWTimage->rows, SWTimage->cols, CV_16U, cv::Scalar(0));
+	DisjointSets equivalent_connections(1); //created with one element (background)
+	short next_label = 1;
+
+	float* ptr;
+	for (int i = 0; i < SWTimage->rows; i++){
+		ptr = SWTimage->ptr<float>(i);
+		for (int j = 0; j < SWTimage->cols; j++){
+			if (ptr[j] > 0){
+				std::vector<int> neighbour_labels;
+				// check pixel to the west, west-north, north, north-east
+				if (j - 1 >= 0) { //if not out of image
+					float west = SWTimage->at<float>(i, j - 1);
+					if (west > 0){
+						//if (ptr[j] / west <= 1.5 || west / ptr[j] <= 1.5){
+						if (max(ptr[j], west) / min(ptr[j], west) <= 2.0){
+							int west_label = labels.at<short>(i, j - 1);
+							if (west_label != 0)
+								neighbour_labels.push_back(west_label);
+						}
+					}
+				}
+				if (i - 1 >= 0) { //if not out of image
+					if (j - 1 >= 0){ //if not out of image
+						float west_north = SWTimage->at<float>(i - 1, j - 1);
+						if (west_north > 0){
+							//if (ptr[j] / west_north <= 1.5 || west_north / ptr[j] <= 1.5){
+							if (max(ptr[j], west_north) / min(ptr[j], west_north) <= 2.0){
+								int west_north_label = labels.at<short>(i - 1, j - 1);
+								if (west_north_label != 0)
+									neighbour_labels.push_back(west_north_label);
+							}
+						}
+					}
+					float north = SWTimage->at<float>(i - 1, j);
+					if (north > 0){
+						//if (ptr[j] / north <= 1.5 || north / ptr[j] <= 1.5){
+						if (max(ptr[j], north) / min(ptr[j], north) <= 2.0){
+							int north_label = labels.at<short>(i - 1, j);
+							if (north_label != 0)
+								neighbour_labels.push_back(north_label);
+						}
+					}
+					if (j + 1 < SWTimage->cols){ //if not out of image
+						float north_east = SWTimage->at<float>(i - 1, j + 1);
+						if (north_east > 0){
+							//if (ptr[j] / north_east <= 1.5 || north_east / ptr[j] <= 1.5){
+							if (max(ptr[j], north_east) / min(ptr[j], north_east) <= 2.0){
+								int north_east_label = labels.at<short>(i - 1, j + 1);
+								if (north_east_label != 0)
+									neighbour_labels.push_back(north_east_label);
+							}
+						}
+					}
+				}
+				//if neighbours have no label. Set new label(component)
+				if (neighbour_labels.empty()){
+					labels.at<short>(i, j) = next_label;
+					next_label++;
+					equivalent_connections.AddElements(1);
+				}
+				else{//find minium label in connected neighbours. Save the equivalent connections for the second pass
+					int minimum = neighbour_labels[0];
+					if (neighbour_labels.size() > 1){
+						for (std::vector<int>::iterator it = neighbour_labels.begin(); it != neighbour_labels.end(); it++){
+							minimum = std::min(minimum, *it);
+							equivalent_connections.Union(equivalent_connections.FindSet(neighbour_labels[0]), equivalent_connections.FindSet(*it));
+						}
+					}
+					labels.at<short>(i, j) = minimum;
+				}
+
+			}
+		}
+	}
+	//second pass. Assign component label from the equivalent connections list
+	short * ptr2;
+	typedef std::unordered_map<short, std::vector<Point2d>> componentmap;
+	componentmap map;
+
+	for (int i = 0; i < labels.rows; i++){
+		ptr2 = labels.ptr<short>(i);
+		for (int j = 0; j < labels.cols; j++){
+			if (ptr2[j] != 0){
+				ptr2[j] = equivalent_connections.FindSet(ptr2[j]);
+				Point2d point;
+				point.x = j;
+				point.y = i;
+				map[ptr2[j]].push_back(point);
+			}
+		}
+	}
+
+	std::vector<Component> components;
+	for (componentmap::iterator it = map.begin(); it != map.end(); it++){
+		components.push_back(Component(it->second));
+	}
+
+
+	return components;
 }
 
 int strokeMedianFilter(Mat *SWTimage, std::vector<std::vector<Point2d>> *saved_rays){
