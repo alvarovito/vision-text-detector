@@ -1,0 +1,4 @@
+Implementado en un Nokia: https://sites.google.com/site/roboticssaurav/strokewidthnokia
+Y su codigo en github: https://github.com/aperrau/DetectText
+
+Paper original : http://www.math.tau.ac.il/~turkel/imagepapers/text_detection.pdf
