@@ -11,6 +11,9 @@ public:
 	std::vector<Point2d> points;
 	float mean, variance, median;
 	int minx, miny, maxx, maxy;
+	bool stats;
 	void getStats(Mat *SWTimage);
+	int getWidth();
+	int isValid();
 };
 
