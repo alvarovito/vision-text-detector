@@ -96,12 +96,49 @@ bool training(Ptr<FaceRecognizer> model,map<int,string> &names) {
 	images.push_back(imread("Miguel/ROI28.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
 	images.push_back(imread("Miguel/ROI29.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
 	images.push_back(imread("Miguel/ROI30.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI31.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI32.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI33.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI34.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI35.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI36.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI37.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI38.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI39.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI40.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI41.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI42.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI43.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI44.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI45.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI46.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI47.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI48.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI49.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
+	images.push_back(imread("Miguel/ROI50.jpg", CV_LOAD_IMAGE_GRAYSCALE)); labels.push_back(0);
 
 	model->train(images, labels);
 	images.clear();
 	names[0] = "Miguel";
 
 	return true;
+}
+
+map <int, Rect> sort(map <int, Rect> ids, int lenght) {
+
+	Rect Temp;
+
+	for (int j = 0; j < lenght - 1; j++){
+
+		if (ids[j].x > ids[j + 1].x) {
+
+			Temp = ids[j];
+			ids[j] = ids[j + 1];
+			ids[j + 1] = Temp;
+		}
+	}
+
+	return ids;
 }
 
 int main(int argc, char* argv[]) {
@@ -111,6 +148,9 @@ int main(int argc, char* argv[]) {
 	
 	Ptr<FaceRecognizer> model = createLBPHFaceRecognizer();
 	map<int, string> names;
+	map<int, Rect> ids;
+	bool init_id = true;
+	int distthreshold = 10;
 	Mat equal;
 	int selected = -1;
 
@@ -140,10 +180,10 @@ int main(int argc, char* argv[]) {
 		Mat image;
 		Mat selection;
 		inputvideo >> frame;
-		cout << selected << endl;
 		int id = -1;
 		double confidence = 0.0;
-
+		ids.clear();
+		Rect temp;
 		if (frame.empty())
 			break;
 
@@ -159,25 +199,29 @@ int main(int argc, char* argv[]) {
 
 		for (size_t i = 0;i < faces.size(); i++) {
 
+			ids[i] = faces[i];
+
 			if (i < 5) {
 
 				rois[i] = Mat(image, Rect(faces[i].x, faces[i].y, faces[i].width, faces[i].height)).clone();
 				resize(rois[i], rois[i], Size(image.cols / 5, image.rows / 5));
 			}
 		}
+		
+		ids = sort(ids, ids.size());
 
 		for (size_t i = 0;i < faces.size(); i++) {
 
 			if (i == selected && faces.size() > selected) {
 
-				selection = Mat(image, faces[selected]);
+				selection = Mat(image, ids[selected]);
 				cvtColor(selection, nface, CV_BGR2GRAY);
 				resize(nface, nface, Size(100, 100));
 				equalizeHist(nface, nface);
 				resize(selection, selection, Size(image.cols *0.23,image.rows * 0.23));
 				selection.copyTo(image.rowRange(image.rows - selection.rows, image.rows).colRange(0, selection.cols));
 
-				model->set("threshold", 90);
+				model->set("threshold", 80);
 				model->predict(nface, id, confidence);
 
 				if (id >= 0) {
@@ -188,7 +232,7 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			DrawMarker(image, faces[i], "" + to_string(i), 10);
+			DrawMarker(image, ids[i], "" + to_string(i), 10);
 		}
 
 		int keypressed = waitKey(10);
@@ -201,11 +245,31 @@ int main(int argc, char* argv[]) {
 		}
 		else if (keypressed == 32) {
 
-			/*	Mat ROI = Mat(workingImage, faces[0]);
-				resize(ROI, ROI, Size(100, 100));
+				/*Mat ROI = Mat(workingImage, faces[0]);
+				//resize(ROI, ROI, Size(100, 100));
 				Mat equal;
-				equalizeHist(ROI, equal);
-				imwrite("Miguel/ROI25.jpg", equal);*/
+				//equalizeHist(ROI, equal);
+				equal = imread("Miguel/ROI14.jpg");
+				GaussianBlur(equal, equal, Size(5, 5), 0, 0);
+				imwrite("Miguel/ROI44.jpg", equal);
+				equal = imread("Miguel/ROI15.jpg");
+				GaussianBlur(equal, equal, Size(5, 5), 0, 0);
+				imwrite("Miguel/ROI45.jpg", equal);
+				equal = imread("Miguel/ROI16.jpg");
+				GaussianBlur(equal, equal, Size(5, 5), 0, 0);
+				imwrite("Miguel/ROI46.jpg", equal);
+				equal = imread("Miguel/ROI17.jpg");
+				GaussianBlur(equal, equal, Size(5, 5), 0, 0);
+				imwrite("Miguel/ROI47.jpg", equal);
+				equal = imread("Miguel/ROI18.jpg");
+				GaussianBlur(equal, equal, Size(5, 5), 0, 0);
+				imwrite("Miguel/ROI48.jpg", equal);
+				equal = imread("Miguel/ROI19.jpg");
+				GaussianBlur(equal, equal, Size(5, 5), 0, 0);
+				imwrite("Miguel/ROI49.jpg", equal);
+				equal = imread("Miguel/ROI20.jpg");
+				GaussianBlur(equal, equal, Size(5, 5), 0, 0);
+				imwrite("Miguel/ROI50.jpg", equal);*/
 
 			if (holdImage)
 				holdImage = false;
