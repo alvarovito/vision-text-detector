@@ -45,20 +45,10 @@ int main(int argc, char** argv)
 	Mat filtered;
 	// Reduce noise with a 3x3 gaussian kernel
 	blur(src_gray, filtered, Size(3, 3));
-	/// Canny detector
 	Mat detected_edges;
 	Canny(filtered, detected_edges, 100, 300, 3);
-	//gradients
-	Mat gradxx;
 	Sobel(filtered, gradient_x, CV_16S, 1, 0, 3, 1, 0, BORDER_DEFAULT);
-	gradient_x.copyTo(gradxx);
-	//Scharr(filtered, gradient_x, CV_16S, 1, 0, 3);
-	convertScaleAbs(gradient_x, abs_grad_x);
 	Sobel(filtered, gradient_y, CV_16S, 0, 1, 3, 1, 0, BORDER_DEFAULT);
-	//Scharr(filtered, gradient_y, CV_16S, 0, 1, 3);
-	convertScaleAbs(gradient_y, abs_grad_y);
-	/// Total Gradient (approximate)
-	addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);
 
 	Mat SWTimage = SWTransform(&detected_edges);
 
@@ -151,9 +141,6 @@ int main(int argc, char** argv)
 	namedWindow("gray", CV_WINDOW_AUTOSIZE);
 	namedWindow("filtered", CV_WINDOW_AUTOSIZE);
 	namedWindow("edges", CV_WINDOW_AUTOSIZE);
-	namedWindow("gradientx", CV_WINDOW_AUTOSIZE);
-	namedWindow("gradienty", CV_WINDOW_AUTOSIZE);
-	namedWindow("grad", CV_WINDOW_AUTOSIZE);
 	namedWindow("SWT", CV_WINDOW_AUTOSIZE);
 	namedWindow("connected_components", CV_WINDOW_AUTOSIZE);
 	//Show image in the name of the window
@@ -161,9 +148,6 @@ int main(int argc, char** argv)
 	imshow("gray", src_gray);
 	imshow("filtered", filtered);
 	imshow("edges", detected_edges);
-	imshow("gradientx", abs_grad_x);
-	imshow("gradienty", abs_grad_y);
-	imshow("grad", grad);
 	imshow("SWT", SWTimage);
 	imshow("connected_components", components_image);
 
