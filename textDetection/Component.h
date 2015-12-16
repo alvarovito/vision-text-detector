@@ -14,6 +14,11 @@ public:
 	bool stats;
 	void getStats(Mat *SWTimage);
 	int getWidth();
+	int getHeigth();
 	int isValid();
+	Point2d getCenter();
+	std::vector<Point2d> rotate_component(float angle);
+	int isSimilar(Component similar);
+
 };
 
